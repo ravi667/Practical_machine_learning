@@ -1,0 +1,1 @@
+# This is the assignment writeup for the Practical machine learning course offered by JHU through Coursera.org
