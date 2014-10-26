@@ -1,0 +1,77 @@
+# Practicle Machine Learning
+
+## Assignment writeup
+
+### Introduction
+
+This is document describes the analysis that I conducted for the final project for the Coursera course “Practical Machine Learning” in the Data Science specialization track. The data for this assignment comes from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv and https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv, and contains information from belt, forearm, arm, and dumbbell accelerometers. The data are split into a training group (19,622) observations and testing group (20 observations). Participants in this study were asked to do a “Dumbbell Biceps Curl” in five different ways, including using correct form and four common mistakes. Participants were equipped with censors on the arm, belt and dumbbell itself.
+
+### Method
+
+Split the training set into 90/10 subsamples.
+```{r}
+library(lattice)
+library(ggplot2)
+library(caret)
+pml.training <- read.csv("pml-training.csv")
+set.seed(5000)
+inTrain <- createDataPartition(y=pml.training$classe, p=0.9, list=FALSE)
+training <- pml.training[inTrain,]
+testing <- pml.training[-inTrain,]
+```
+
+The 90 percent subsample is used to train the model, and the 10 percent sample is used for cross-validation. The simple cross-validation was chosen over K-fold via the cv.folds option to cut down on execution time. The Stochastic Gradient Boosting algorithm via the gbm package was implemented.
+
+```{r}
+pm <- proc.time()
+modFit <- train(classe ~ user_name + pitch_arm + yaw_arm + roll_arm + roll_belt + pitch_belt + yaw_belt + gyros_belt_x + gyros_belt_y + gyros_belt_z + accel_belt_x + accel_belt_y + accel_belt_z + magnet_belt_x + magnet_belt_y + magnet_belt_z + gyros_arm_x + gyros_arm_y + gyros_arm_z + accel_arm_x + accel_arm_y + accel_arm_z + magnet_arm_x + magnet_arm_y + magnet_arm_z + roll_dumbbell + pitch_dumbbell + yaw_dumbbell, method="gbm", data=training, verbose=FALSE)
+proc.time() - pm
+```
+
+
+```{r}
+print(modFit)
+predict.train <- predict(modFit,training)
+table(predict.train, training$classe)
+```
+
+The model correctly classified 93.6 percent of the observations in the training sample using 150 trees. The __“roll_belt” and “yaw_belt”"__ features were the most important variables.
+
+```{r}
+summary(modFit,n.trees=150)
+```
+
+A plot of these top two features colored by outcome demonstrates their relative importance.
+```{r}
+qplot(roll_belt, yaw_belt,colour=classe,data=training)
+```
+Although these two variables are the most influencial, there are some bunching in the plot confirming the boosting algorithm as a good choice given the large set of relatively weak predictors.The next plot further demonstrates the improved performance gained by using boosting iterations.
+
+```{r}
+ggplot(modFit)
+```
+
+The performance on the 10 percent subsample is further checked to get an estimate of the algorithm’s out-of-sample performance.
+```{r}
+predict.testing <- predict(modFit,testing)
+table(predict.testing, testing$classe)
+```
+Now, the performance of the algorithm is slightly worsened than comared to the 90 percent of the training set.
+
+#### Predicting on the Test Set
+
+Finally, The algorithm was used to predict the testing dataset provided, where the results were run through the __pml_write_files()__ function provided by the course instructors, and were stored for submission.
+```{r}
+pml.testing <- read.csv("pml-testing.csv")
+answers <- as.character(predict(modFit, pml.testing))
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+```
+
+Upon submission, the algorithm correctly predicted the outcome for 20/20 observations further confirming its strong out-of-sample classification accuracy.
